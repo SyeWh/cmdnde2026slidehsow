@@ -45,6 +45,28 @@
   #startBtn { position:absolute; left:50%; top:76%; transform:translateX(-50%); font-family:Didot, Georgia, serif; font-size:1.6cqw; letter-spacing:.2em; text-transform:uppercase; padding:.8cqw 2.4cqw; color:#f2ece4; background:rgba(0,0,0,.35); border:1px solid rgba(242,236,228,.6); border-radius:0; cursor:pointer; }
   #startBtn:hover { background:rgba(0,0,0,.55); }
   #show:not(.mouse) #startBtn.running { opacity:0; }
+  .nav, .mv { display:none; }
+
+  /* Phone only (portrait by width, landscape by height). Desktop is unaffected. */
+  @media (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
+    header { flex-wrap:wrap; padding:12px 16px; }
+    header h1 { width:100%; }
+    header button { flex:1; padding:10px 8px; font-size:13px; }
+    #playBtn { flex-basis:100%; order:3; }
+    .hint { padding:10px 16px 0; }
+    #grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:18px 12px; padding:16px 16px 60px; }
+    .meta { flex-wrap:wrap; }
+    .title { order:-1; flex-basis:100%; }
+    .num { flex:1; }
+    .thumb .del { opacity:1; font-size:16px; line-height:26px; padding:0 9px; }
+    .mv, .tbtn { display:inline-block; padding:5px 9px; font-size:14px; }
+    #show { cursor:default; }
+    #startBtn { font-size:10px; padding:5px 12px; }
+    #show:not(.mouse) #startBtn.running { opacity:1; }
+    .nav { display:flex; position:fixed; bottom:max(16px, env(safe-area-inset-bottom)); left:16px; right:16px; gap:8px; align-items:center; }
+    .nav button { padding:12px 16px; font-size:16px; background:rgba(30,30,35,.85); }
+    .nav span { flex:1; min-width:0; color:#aaa; font-size:12px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  }
 </style>
 </head>
 <body>
@@ -67,26 +89,32 @@
       <button id="startBtn">Démarrer</button>
     </div>
   </div>
+  <div class="nav">
+    <button id="prevBtn">←</button>
+    <span id="counter"></span>
+    <button id="nextBtn">→</button>
+    <button id="exitBtn">✕</button>
+  </div>
 </div>
 
 <script>
 const TIMER_IMAGE = "TIMER.webp";
 const TIMER_SECONDS = 4 * 60;
-const STORE_KEY = "projection-nde-v1";
+const STORE_KEY = "projection-nde-v3";
 
 // Default order. Files whose name starts with "participant" get the timer screen after them.
 const DEFAULT_FILES = [
   "AFFICHE HORIZONTAL.png",
-  "MOT DIRECTEUR.jpg", "MOT DES CPS.jpg", "MOT P CMD.jpg", "MOT P SBS.jpg",
+  "MOT DIRECTEUR.jpg", "MOT P SBS.jpg", "MOT P CMD.jpg", "MOT DES CPS.jpg",
   "jurys CAMELIA.jpg", "jurys LAHCINI.jpg", "jurys chahrazad.jpg", "jurys kenza.jpg",
-  "participant 6DAYS.jpg", "participant AFSAM.jpg", "participant ARTEMIS.jpg", "participant ASES.jpg",
-  "participant C2P.jpg", "participant CIAD.jpg", "participant CMD.jpg", "participant ENACTUS.jpg",
+  "participant CIAD.jpg", "participant ASES.jpg", "participant ESPRESS.jpg", "participant ENACTUS.jpg",
+  "participant GENIE.jpg", "participant EPIK.jpg", "participant GREEN INVEST.jpg", "participant AFSAM.jpg",
+  "participant L'ADAM.jpg",
   "PASSAGE MUSICALE.jpg",
-  "participant EPIK.jpg", "participant ESPRESS.jpg", "participant FINANCE CLUB.jpg",
-  "participant GENIE.jpg", "participant GREEN INVEST.jpg",
   "PAUSE.jpg",
-  "participant L'ADAM.jpg", "participant LIONS.jpg", "participant ROTA.jpg",
-  "participant TIZI.jpg", "participant elite.jpg",
+  "participant C2P.jpg", "participant 6DAYS.jpg", "participant CMD.jpg", "participant LIONS.jpg",
+  "participant elite.jpg", "participant TIZI.jpg", "participant ROTA.jpg", "participant ARTEMIS.jpg",
+  "participant FINANCE CLUB.jpg",
   "PASSAGE VIOLON.jpg",
   "REMISE TROPHEE.jpg",
 ];
@@ -122,6 +150,8 @@ function render() {
       <div class="meta">
         <span class="num">${i + 1}</span>
         <input class="title" spellcheck="false">
+        <button class="mv" data-d="-1" title="Avancer">‹</button>
+        <button class="mv" data-d="1" title="Reculer">›</button>
         <button class="tbtn ${it.timer ? "on" : ""}" title="Écran chrono après cette diapo">⏱</button>
       </div>`;
     card.querySelector("img").src = encodeURI(it.file).replace(/#/g, "%23");
@@ -129,7 +159,14 @@ function render() {
     title.value = it.title;
     title.addEventListener("input", () => { it.title = title.value; save(); });
     title.addEventListener("mousedown", e => e.stopPropagation());
-    card.querySelector(".tbtn").onclick = () => { it.timer = !it.timer; save(); render(); };
+    // Move buttons (phone only, since drag and drop doesn't work on touch screens).
+    card.querySelectorAll(".mv").forEach(b => b.onclick = () => {
+      const j = i + Number(b.dataset.d);
+      if (j < 0 || j >= items.length) return;
+      [items[i], items[j]] = [items[j], items[i]];
+      save(); render();
+    });
+    card.querySelector(".tbtn").onclick =() => { it.timer = !it.timer; save(); render(); };
     card.querySelector(".del").onclick = () => {
       if (confirm(`Retirer « ${it.title} » du diaporama ?`)) { items.splice(i, 1); save(); render(); }
     };
@@ -169,6 +206,7 @@ const slideImg = document.getElementById("slideImg");
 const timerBox = document.getElementById("timer");
 const clock = document.getElementById("clock");
 const startBtn = document.getElementById("startBtn");
+const counter = document.getElementById("counter");
 let slides = [], cur = 0;
 
 function buildSlides() {
@@ -199,6 +237,7 @@ function go(n) {
   cur = Math.max(0, Math.min(slides.length - 1, n));
   const s = slides[cur];
   slideImg.src = encodeURI(s.src).replace(/#/g, "%23");
+  counter.textContent = `${cur + 1} / ${slides.length} · ${s.title}`;
   resetTimer();
   timerBox.classList.toggle("on", !!s.timer);
   // Preload the next image so transitions are instant.
@@ -244,6 +283,9 @@ startBtn.onclick = e => { e.stopPropagation(); startBtn.blur(); toggleTimer(); }
 
 // ---------- Controls ----------
 document.getElementById("playBtn").onclick = () => openShow(0);
+document.getElementById("prevBtn").onclick = () => go(cur - 1);
+document.getElementById("nextBtn").onclick = () => go(cur + 1);
+document.getElementById("exitBtn").onclick = closeShow;
 
 document.addEventListener("keydown", e => {
   if (!show.classList.contains("open")) return;
